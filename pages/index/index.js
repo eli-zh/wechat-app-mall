@@ -14,7 +14,7 @@ Page({
     categories: [],
     activeCategoryId: 0,
     goods:[],
-    scrollTop:"0",
+    scrollTop:0,
     loadingMoreHidden:true,
 
     hasNoCoupons:true,
@@ -52,29 +52,11 @@ Page({
         selectCurrent: e.index  
     })  
   },
-  scroll: function (e) {
-    //  console.log(e) ;
-    var that = this,scrollTop=that.data.scrollTop;
-    that.setData({
-      scrollTop:e.detail.scrollTop
-    })
-    // console.log('e.detail.scrollTop:'+e.detail.scrollTop) ;
-    // console.log('scrollTop:'+scrollTop)
-  },
   onLoad: function () {
     var that = this
     wx.setNavigationBarTitle({
       title: wx.getStorageSync('mallName')
     })
-    /*
-    //调用应用实例的方法获取全局数据
-    app.getUserInfo(function(userInfo){
-      //更新数据
-      that.setData({
-        userInfo:userInfo
-      })
-    })
-    */
     wx.request({
       url: 'https://api.it120.cc/' + app.globalData.subDomain + '/banner/list',
       data: {
@@ -93,7 +75,7 @@ Page({
           });
         }
       }
-    })
+    }),
     wx.request({
       url: 'https://api.it120.cc/'+ app.globalData.subDomain +'/shop/goods/category/all',
       success: function(res) {
@@ -113,6 +95,12 @@ Page({
     that.getCoupons ();
     that.getNotice ();
   },
+  onPageScroll(e) {
+    let scrollTop = this.data.scrollTop
+    this.setData({
+      scrollTop: e.scrollTop
+    })
+   },
   getGoodsList: function (categoryId) {
     if (categoryId == 0) {
       categoryId = "";
@@ -169,7 +157,7 @@ Page({
       url: 'https://api.it120.cc/' + app.globalData.subDomain + '/discounts/fetch',
       data: {
         id: e.currentTarget.dataset.id,
-        token: app.globalData.token
+        token: wx.getStorageSync('token')
       },
       success: function (res) {
         if (res.data.code == 20001 || res.data.code == 20002) {
