@@ -1,4 +1,5 @@
 //index.js
+const api = require('../../utils/request.js')
 //获取应用实例
 var app = getApp()
 
@@ -12,6 +13,7 @@ Page({
     allGoodsAndYunPrice:0,
     goodsJsonStr:"",
     orderType:"", //订单类型，购物车下单或立即支付下单，默认是购物车，
+    pingtuanOpenId:undefined, //拼团的话记录团号
 
     hasNoCoupons: true,
     coupons: [],
@@ -46,11 +48,10 @@ Page({
   },
 
   onLoad: function (e) {
-    var that = this;
-    //显示收货地址标识
-    that.setData({
+    this.setData({
       isNeedLogistics: 1,
-      orderType: e.orderType
+      orderType: e.orderType,
+      pingtuanOpenId: e.pingtuanOpenId
     });
   },
 
@@ -79,7 +80,10 @@ Page({
       remark: remark
     };
     if (that.data.kjId) {
-      postData.kjid = that.data.kjId;
+      postData.kjid = that.data.kjId
+    }
+    if (that.data.pingtuanOpenId) {
+      postData.pingtuanOpenId = that.data.pingtuanOpenId
     }
     if (that.data.isNeedLogistics > 0) {
       if (!that.data.curAddressData) {
@@ -108,83 +112,78 @@ Page({
       postData.calculate = "true";
     }
 
-
-    wx.request({
-      url: 'https://api.it120.cc/'+ app.globalData.subDomain +'/order/create',
-      method:'POST',
-      header: {
-        'content-type': 'application/x-www-form-urlencoded'
-      },
-      data: postData, // 设置请求的 参数
-      success: (res) =>{
-        wx.hideLoading();
-        if (res.data.code != 0) {
-          wx.showModal({
-            title: '错误',
-            content: res.data.msg,
-            showCancel: false
-          })
-          return;
-        }
-
-        if (e && "buyNow" != that.data.orderType) {
-          // 清空购物车数据
-          wx.removeStorageSync('shopCarInfo');
-        }
-        if (!e) {
-          that.setData({
-            totalScoreToPay: res.data.data.score,
-            isNeedLogistics: res.data.data.isNeedLogistics,
-            allGoodsPrice: res.data.data.amountTotle,
-            allGoodsAndYunPrice: res.data.data.amountLogistics + res.data.data.amountTotle,
-            yunPrice: res.data.data.amountLogistics
-          });
-          that.getMyCoupons();
-          return;
-        }
-        // 配置模板消息推送
-        var postJsonString = {};
-        postJsonString.keyword1 = { value: res.data.data.dateAdd, color: '#173177' }
-        postJsonString.keyword2 = { value: res.data.data.amountReal + '元', color: '#173177' }
-        postJsonString.keyword3 = { value: res.data.data.orderNumber, color: '#173177' }
-        postJsonString.keyword4 = { value: '订单已关闭', color: '#173177' }
-        postJsonString.keyword5 = { value: '您可以重新下单，请在30分钟内完成支付', color:'#173177'}
-        app.sendTempleMsg(res.data.data.id, -1,
-          'mGVFc31MYNMoR9Z-A9yeVVYLIVGphUVcK2-S2UdZHmg', e.detail.formId,
-          'pages/index/index', JSON.stringify(postJsonString));
-        postJsonString = {};
-        postJsonString.keyword1 = { value: '您的订单已发货，请注意查收', color: '#173177' }
-        postJsonString.keyword2 = { value: res.data.data.orderNumber, color: '#173177' }
-        postJsonString.keyword3 = { value: res.data.data.dateAdd, color: '#173177' }
-        app.sendTempleMsg(res.data.data.id, 2,
-          'Arm2aS1rsklRuJSrfz-QVoyUzLVmU2vEMn_HgMxuegw', e.detail.formId,
-          'pages/order-details/index?id=' + res.data.data.id, JSON.stringify(postJsonString));
-        // 下单成功，跳转到订单管理界面
-        wx.redirectTo({
-          url: "/pages/order-list/index"
-        });
+    api.fetchRequest('/order/create', postData, 'POST', 0, {
+      'content-type': 'application/x-www-form-urlencoded'
+    }).then(function (res) {
+      if (res.data.code != 0) {
+        wx.showModal({
+          title: '错误',
+          content: res.data.msg,
+          showCancel: false
+        })
+        return;
       }
+
+      if (e && "buyNow" != that.data.orderType) {
+        // 清空购物车数据
+        wx.removeStorageSync('shopCarInfo');
+      }
+      if (!e) {
+        that.setData({
+          totalScoreToPay: res.data.data.score,
+          isNeedLogistics: res.data.data.isNeedLogistics,
+          allGoodsPrice: res.data.data.amountTotle,
+          allGoodsAndYunPrice: res.data.data.amountLogistics + res.data.data.amountTotle,
+          yunPrice: res.data.data.amountLogistics
+        });
+        that.getMyCoupons();
+        return;
+      }
+      api.fetchRequest('/template-msg/wxa/formId', {
+        token: wx.getStorageSync('token'),
+        type: 'form',
+        formId: e.detail.formId
+      })
+      // 配置模板消息推送
+      var postJsonString = {};
+      postJsonString.keyword1 = { value: res.data.data.dateAdd, color: '#173177' }
+      postJsonString.keyword2 = { value: res.data.data.amountReal + '元', color: '#173177' }
+      postJsonString.keyword3 = { value: res.data.data.orderNumber, color: '#173177' }
+      postJsonString.keyword4 = { value: '订单已关闭', color: '#173177' }
+      postJsonString.keyword5 = { value: '您可以重新下单，请在30分钟内完成支付', color: '#173177' }
+      app.sendTempleMsg(res.data.data.id, -1,
+        'mGVFc31MYNMoR9Z-A9yeVVYLIVGphUVcK2-S2UdZHmg', '',
+        'pages/index/index', JSON.stringify(postJsonString));
+      postJsonString = {};
+      postJsonString.keyword1 = { value: '您的订单已发货，请注意查收', color: '#173177' }
+      postJsonString.keyword2 = { value: res.data.data.orderNumber, color: '#173177' }
+      postJsonString.keyword3 = { value: res.data.data.dateAdd, color: '#173177' }
+      app.sendTempleMsg(res.data.data.id, 2,
+        'Arm2aS1rsklRuJSrfz-QVoyUzLVmU2vEMn_HgMxuegw', '',
+        'pages/order-details/index?id=' + res.data.data.id, JSON.stringify(postJsonString));
+      // 下单成功，跳转到订单管理界面
+      wx.redirectTo({
+        url: "/pages/order-list/index"
+      });
+    }).finally(function() {
+      wx.hideLoading();
     })
   },
   initShippingAddress: function () {
     var that = this;
-    wx.request({
-      url: 'https://api.it120.cc/'+ app.globalData.subDomain +'/user/shipping-address/default',
-      data: {
-        token: wx.getStorageSync('token')
-      },
-      success: (res) =>{
-        if (res.data.code == 0) {
-          that.setData({
-            curAddressData:res.data.data
-          });
-        }else{
-          that.setData({
-            curAddressData: null
-          });
-        }
-        that.processYunfei();
+    api.fetchRequest('/user/shipping-address/default', {
+      token: wx.getStorageSync('token')
+    }).then(function (res) {
+      if (res.data.code == 0) {
+        that.setData({
+          curAddressData: res.data.data
+        });
+      } else {
+        that.setData({
+          curAddressData: null
+        });
       }
+      that.processYunfei();
     })
   },
   processYunfei: function () {
@@ -239,23 +238,19 @@ Page({
   },
   getMyCoupons: function () {
     var that = this;
-    wx.request({
-      url: 'https://api.it120.cc/' + app.globalData.subDomain + '/discounts/my',
-      data: {
-        token: wx.getStorageSync('token'),
-        status:0
-      },
-      success: function (res) {
-        if (res.data.code == 0) {
-          var coupons = res.data.data.filter(entity => {
-            return entity.moneyHreshold <= that.data.allGoodsAndYunPrice;
+    api.fetchRequest('/discounts/my', {
+      token: wx.getStorageSync('token'),
+      status: 0
+    }).then(function (res) {
+      if (res.data.code == 0) {
+        var coupons = res.data.data.filter(entity => {
+          return entity.moneyHreshold <= that.data.allGoodsAndYunPrice;
+        });
+        if (coupons.length > 0) {
+          that.setData({
+            hasNoCoupons: false,
+            coupons: coupons
           });
-          if (coupons.length > 0) {
-            that.setData({
-              hasNoCoupons: false,
-              coupons: coupons
-            });
-          }
         }
       }
     })

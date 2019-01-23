@@ -1,4 +1,4 @@
-//login.js
+const api = require('../../utils/request.js')
 //获取应用实例
 var app = getApp();
 Page({
@@ -7,10 +7,22 @@ Page({
     angle: 0,
     userInfo: {}
   },
-  goToIndex:function(){
-    wx.switchTab({
-      url: '/pages/index/index',
-    });
+  goToIndex:function(e){    
+    api.fetchRequest('/template-msg/wxa/formId', {
+      token: wx.getStorageSync('token'),
+      type: 'form',
+      formId: e.detail.formId
+    })
+    if (app.globalData.isConnected) {
+      wx.switchTab({
+        url: '/pages/index/index',
+      });
+    } else {
+      wx.showToast({
+        title: '当前无网络',
+        icon: 'none',
+      })
+    }
   },
   onLoad:function(){
     var that = this
@@ -22,9 +34,7 @@ Page({
     let that = this
     let userInfo = wx.getStorageSync('userInfo')
     if (!userInfo) {
-      wx.navigateTo({
-        url: "/pages/authorize/index"
-      })
+      app.goLoginPageTimeOut()
     } else {
       that.setData({
         userInfo: userInfo
